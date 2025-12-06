@@ -13,6 +13,7 @@ export const isAdmin = (email: string | null | undefined): boolean => {
  */
 export const ADMIN_EMAILS = [
   'sammichael@karunya.edu.in',
+  'hod_dove@karunya.edu'
   // Add more admin emails here if needed
 ].filter(Boolean);
 

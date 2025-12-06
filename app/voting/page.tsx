@@ -272,7 +272,7 @@ const handleVote = async () => {
           )}
 
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/login')}
             className="px-8 py-3 rounded-lg font-semibold transition-all"
             style={{
               background: 'linear-gradient(135deg, #D4AF37 0%, #F4D03F 100%)',
@@ -289,7 +289,7 @@ const handleVote = async () => {
               e.currentTarget.style.boxShadow = '0 4px 15px rgba(212, 175, 55, 0.3)';
             }}
           >
-            Back to Dashboard
+            Logout
           </button>
         </div>
       </div>
