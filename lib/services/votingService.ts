@@ -36,13 +36,16 @@ export const getCategories = async (): Promise<Category[]> => {
 /**
  * Get candidates for a specific category (ordered by display order)
  */
+/**
+ * Get candidates by category (ordered by display order)
+ */
 export const getCandidatesByCategory = async (categoryId: string): Promise<Candidate[]> => {
   try {
     const candidatesRef = collection(db, 'candidates');
     const q = query(
       candidatesRef, 
       where('categoryId', '==', categoryId),
-      orderBy('order', 'asc') // ✅ Sort by order field
+      orderBy('order', 'asc')
     );
     const snapshot = await getDocs(q);
     
@@ -51,11 +54,12 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
       ...doc.data()
     } as Candidate));
   } catch (error) {
-    console.error('Error fetching candidates with order:', error);
+    console.error('❌ Error fetching candidates with order:', error);
     
-    // Fallback: If order field doesn't exist or index not ready, fetch without ordering
+    // Fallback: If order field doesn't exist or index not ready
     try {
-      const fallbackQuery = query(candidatesRef, where('categoryId', '==', categoryId));
+      const candidatesRefFallback = collection(db, 'candidates'); // ✅ FIXED
+      const fallbackQuery = query(candidatesRefFallback, where('categoryId', '==', categoryId));
       const fallbackSnapshot = await getDocs(fallbackQuery);
       
       const candidates = fallbackSnapshot.docs.map(doc => ({
@@ -63,20 +67,21 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
         ...doc.data()
       } as Candidate));
       
-      // Sort by order field if it exists, otherwise keep original order
+      // Sort by order field if it exists
       candidates.sort((a, b) => {
-        const orderA = a.order ?? 999; // Put unordered items at end
+        const orderA = a.order ?? 999;
         const orderB = b.order ?? 999;
         return orderA - orderB;
       });
       
       return candidates;
     } catch (fallbackError) {
-      console.error('Fallback query also failed:', fallbackError);
+      console.error('❌ Fallback query also failed:', fallbackError);
       throw fallbackError;
     }
   }
 };
+
 
 /**
  * Get user's voting progress
