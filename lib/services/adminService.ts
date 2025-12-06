@@ -334,12 +334,12 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
       ...doc.data()
     } as Candidate));
   } catch (error) {
-    console.error('Error fetching candidates with order:', error);
+    console.error('❌ Error fetching candidates with order:', error);
     
     // Fallback: If order field doesn't exist or index not ready
     try {
-      const candidatesRef = collection(db, 'candidates'); // ✅ FIXED: Redeclare here
-      const fallbackQuery = query(candidatesRef, where('categoryId', '==', categoryId));
+      const candidatesRefFallback = collection(db, 'candidates');
+      const fallbackQuery = query(candidatesRefFallback, where('categoryId', '==', categoryId));
       const fallbackSnapshot = await getDocs(fallbackQuery);
       
       const candidates = fallbackSnapshot.docs.map(doc => ({
@@ -347,21 +347,20 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
         ...doc.data()
       } as Candidate));
       
-      // Sort by order field if it exists, otherwise keep original order
+      // Sort by order field if it exists
       candidates.sort((a, b) => {
-        const orderA = a.order ?? 999; // Put unordered items at end
+        const orderA = a.order ?? 999;
         const orderB = b.order ?? 999;
         return orderA - orderB;
       });
       
       return candidates;
     } catch (fallbackError) {
-      console.error('Fallback query also failed:', fallbackError);
+      console.error('❌ Fallback query also failed:', fallbackError);
       throw fallbackError;
     }
   }
 };
-
 
 /**
  * Get candidate count for a category
@@ -447,7 +446,7 @@ export const getCategorySetupStatus = async () => {
 export const getCategoryResults = async (categoryId: string) => {
   try {
     const [candidates, summaryDoc] = await Promise.all([
-      getCandidatesByCategory(categoryId), // Already sorted by order
+      getCandidatesByCategory(categoryId),
       getDoc(doc(db, 'voteSummary', categoryId))
     ]);
 
@@ -466,12 +465,6 @@ export const getCategoryResults = async (categoryId: string) => {
         percentage: parseFloat(percentage)
       };
     });
-
-    // Option 1: Keep original order (by candidate.order)
-    // results is already sorted by order from getCandidatesByCategory
-    
-    // Option 2: Sort by votes (descending) - Uncomment if you want results sorted by votes
-    // results.sort((a, b) => b.votes - a.votes);
 
     return {
       categoryId,
@@ -508,7 +501,6 @@ export const getAllVotingResults = async () => {
  */
 export const getVotingStatistics = async () => {
   try {
-    // Get all users who have started voting
     const usersRef = collection(db, 'users');
     const usersSnapshot = await getDocs(usersRef);
     
@@ -559,7 +551,6 @@ export const getVotingSettings = async (): Promise<VotingSettings> => {
     const settingsDoc = await getDoc(settingsRef);
     
     if (!settingsDoc.exists()) {
-      // Default settings if doesn't exist
       const defaultSettings: VotingSettings = {
         isOpen: false,
         openedAt: null,
@@ -574,7 +565,6 @@ export const getVotingSettings = async (): Promise<VotingSettings> => {
     
     const data = settingsDoc.data();
     
-    // Properly cast to VotingSettings
     return {
       isOpen: data.isOpen ?? false,
       openedAt: data.openedAt ?? null,
