@@ -15,9 +15,7 @@ import {
 import { db } from '../firebase/config';
 import { Category, Candidate, VotingSettings } from '../types/voting';
 
-
 // ==================== CATEGORY MANAGEMENT ====================
-
 
 /**
  * Create a new category
@@ -43,7 +41,6 @@ export const createCategory = async (categoryData: Omit<Category, 'id' | 'create
   }
 };
 
-
 /**
  * Update existing category
  */
@@ -62,7 +59,6 @@ export const updateCategory = async (categoryId: string, updates: Partial<Catego
     throw error;
   }
 };
-
 
 /**
  * Delete category (only if no candidates exist)
@@ -88,7 +84,6 @@ export const deleteCategory = async (categoryId: string): Promise<void> => {
   }
 };
 
-
 /**
  * Get all categories
  */
@@ -107,7 +102,6 @@ export const getAllCategories = async (): Promise<Category[]> => {
     throw error;
   }
 };
-
 
 /**
  * Get category by ID
@@ -130,12 +124,67 @@ export const getCategoryById = async (categoryId: string): Promise<Category | nu
   }
 };
 
-
 // ==================== CANDIDATE MANAGEMENT ====================
 
+/**
+ * Get next available order number for a category
+ */
+export const getNextCandidateOrder = async (categoryId: string): Promise<number> => {
+  try {
+    const candidatesRef = collection(db, 'candidates');
+    const q = query(
+      candidatesRef, 
+      where('categoryId', '==', categoryId),
+      orderBy('order', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      return 1; // First candidate
+    }
+    
+    const highestOrder = snapshot.docs[0].data().order || 0;
+    return highestOrder + 1;
+  } catch (error) {
+    console.error('❌ Error getting next order:', error);
+    // If error (like missing order field), count candidates and add 1
+    const candidates = await getCandidatesByCategory(categoryId);
+    return candidates.length + 1;
+  }
+};
 
 /**
- * Create a new candidate
+ * Check if order number is already taken in category
+ */
+export const isOrderTaken = async (categoryId: string, order: number, excludeCandidateId?: string): Promise<boolean> => {
+  try {
+    const candidatesRef = collection(db, 'candidates');
+    const q = query(
+      candidatesRef,
+      where('categoryId', '==', categoryId),
+      where('order', '==', order)
+    );
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      return false;
+    }
+    
+    // If editing, check if the existing order belongs to the same candidate
+    if (excludeCandidateId) {
+      const existingCandidate = snapshot.docs[0];
+      return existingCandidate.id !== excludeCandidateId;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error checking order:', error);
+    return false;
+  }
+};
+
+/**
+ * Create a new candidate with order
  */
 export const createCandidate = async (candidateData: Omit<Candidate, 'id' | 'totalVotes' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
@@ -146,6 +195,17 @@ export const createCandidate = async (candidateData: Omit<Candidate, 'id' | 'tot
     
     if (snapshot.size >= 3) {
       throw new Error('This category already has 3 candidates. Maximum limit reached.');
+    }
+    
+    // Validate order number
+    if (!candidateData.order || candidateData.order < 1 || candidateData.order > 3) {
+      throw new Error('Order must be between 1 and 3');
+    }
+    
+    // Check if order is already taken
+    const orderTaken = await isOrderTaken(candidateData.categoryId, candidateData.order);
+    if (orderTaken) {
+      throw new Error(`Order ${candidateData.order} is already taken in this category. Please choose a different order.`);
     }
     
     const newCandidateRef = doc(candidatesRef);
@@ -159,7 +219,7 @@ export const createCandidate = async (candidateData: Omit<Candidate, 'id' | 'tot
     };
     
     await setDoc(newCandidateRef, candidate);
-    console.log('✅ Candidate created:', newCandidateRef.id);
+    console.log('✅ Candidate created:', newCandidateRef.id, 'with order:', candidateData.order);
     return newCandidateRef.id;
   } catch (error) {
     console.error('❌ Error creating candidate:', error);
@@ -167,16 +227,35 @@ export const createCandidate = async (candidateData: Omit<Candidate, 'id' | 'tot
   }
 };
 
-
 /**
- * Update existing candidate
+ * Update existing candidate with order validation
  */
 export const updateCandidate = async (candidateId: string, updates: Partial<Candidate>): Promise<void> => {
   try {
     const candidateRef = doc(db, 'candidates', candidateId);
+    const candidateDoc = await getDoc(candidateRef);
+    
+    if (!candidateDoc.exists()) {
+      throw new Error('Candidate not found');
+    }
+    
+    const currentData = candidateDoc.data() as Candidate;
     
     // Don't allow updating totalVotes through this method
     const { totalVotes, ...safeUpdates } = updates;
+    
+    // If order is being updated, validate it
+    if (safeUpdates.order !== undefined) {
+      if (safeUpdates.order < 1 || safeUpdates.order > 3) {
+        throw new Error('Order must be between 1 and 3');
+      }
+      
+      // Check if new order is already taken (excluding current candidate)
+      const orderTaken = await isOrderTaken(currentData.categoryId, safeUpdates.order, candidateId);
+      if (orderTaken) {
+        throw new Error(`Order ${safeUpdates.order} is already taken in this category. Please choose a different order.`);
+      }
+    }
     
     await updateDoc(candidateRef, {
       ...safeUpdates,
@@ -190,7 +269,6 @@ export const updateCandidate = async (candidateId: string, updates: Partial<Cand
   }
 };
 
-
 /**
  * Delete candidate
  */
@@ -203,11 +281,6 @@ export const deleteCandidate = async (candidateId: string): Promise<void> => {
       throw new Error('Candidate not found');
     }
     
-    const candidateData = candidateDoc.data() as Candidate;
-    
-    // Warning: This will run on server-side during build, so we skip window.confirm
-    // The confirmation is handled in the component layer
-    
     await deleteDoc(candidateRef);
     console.log('✅ Candidate deleted:', candidateId);
   } catch (error) {
@@ -216,33 +289,44 @@ export const deleteCandidate = async (candidateId: string): Promise<void> => {
   }
 };
 
-
 /**
- * Get all candidates
+ * Get all candidates (sorted by order within category)
  */
 export const getAllCandidates = async (): Promise<Candidate[]> => {
   try {
     const candidatesRef = collection(db, 'candidates');
     const snapshot = await getDocs(candidatesRef);
     
-    return snapshot.docs.map(doc => ({
+    const candidates = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     } as Candidate));
+    
+    // Sort by order (handle missing order field)
+    candidates.sort((a, b) => {
+      const orderA = a.order || 999;
+      const orderB = b.order || 999;
+      return orderA - orderB;
+    });
+    
+    return candidates;
   } catch (error) {
     console.error('❌ Error fetching candidates:', error);
     throw error;
   }
 };
 
-
 /**
- * Get candidates by category
+ * Get candidates by category (ordered by display order)
  */
 export const getCandidatesByCategory = async (categoryId: string): Promise<Candidate[]> => {
   try {
     const candidatesRef = collection(db, 'candidates');
-    const q = query(candidatesRef, where('categoryId', '==', categoryId));
+    const q = query(
+      candidatesRef, 
+      where('categoryId', '==', categoryId),
+      orderBy('order', 'asc') // ✅ Sort by order
+    );
     const snapshot = await getDocs(q);
     
     return snapshot.docs.map(doc => ({
@@ -251,10 +335,32 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
     } as Candidate));
   } catch (error) {
     console.error('❌ Error fetching candidates:', error);
-    throw error;
+    
+    // Fallback: If order field doesn't exist yet, fetch without ordering
+    try {
+      const fallbackQuery = query(candidatesRef, where('categoryId', '==', categoryId));
+      const fallbackSnapshot = await getDocs(fallbackQuery);
+      
+      const candidates = fallbackSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Candidate));
+      
+      // Sort by order field if it exists, otherwise by creation time
+      candidates.sort((a, b) => {
+        if (a.order && b.order) {
+          return a.order - b.order;
+        }
+        return 0;
+      });
+      
+      return candidates;
+    } catch (fallbackError) {
+      console.error('❌ Fallback query also failed:', fallbackError);
+      throw fallbackError;
+    }
   }
 };
-
 
 /**
  * Get candidate count for a category
@@ -269,9 +375,7 @@ export const getCandidateCount = async (categoryId: string): Promise<number> => 
   }
 };
 
-
 // ==================== DASHBOARD STATS ====================
-
 
 /**
  * Get admin dashboard statistics
@@ -311,7 +415,6 @@ export const getAdminStats = async () => {
   }
 };
 
-
 /**
  * Get category setup status
  */
@@ -335,17 +438,15 @@ export const getCategorySetupStatus = async () => {
   }
 };
 
-
 // ==================== RESULTS & ANALYTICS ====================
 
-
 /**
- * Get voting results for a specific category
+ * Get voting results for a specific category (ordered by candidate order)
  */
 export const getCategoryResults = async (categoryId: string) => {
   try {
     const [candidates, summaryDoc] = await Promise.all([
-      getCandidatesByCategory(categoryId),
+      getCandidatesByCategory(categoryId), // Already sorted by order
       getDoc(doc(db, 'voteSummary', categoryId))
     ]);
 
@@ -365,8 +466,11 @@ export const getCategoryResults = async (categoryId: string) => {
       };
     });
 
-    // Sort by votes (descending)
-    results.sort((a, b) => b.votes - a.votes);
+    // Option 1: Keep original order (by candidate.order)
+    // results is already sorted by order from getCandidatesByCategory
+    
+    // Option 2: Sort by votes (descending) - Uncomment if you want results sorted by votes
+    // results.sort((a, b) => b.votes - a.votes);
 
     return {
       categoryId,
@@ -379,7 +483,6 @@ export const getCategoryResults = async (categoryId: string) => {
     throw error;
   }
 };
-
 
 /**
  * Get all voting results (all categories)
@@ -398,7 +501,6 @@ export const getAllVotingResults = async () => {
     throw error;
   }
 };
-
 
 /**
  * Get overall voting statistics
@@ -445,9 +547,7 @@ export const getVotingStatistics = async () => {
   }
 };
 
-
 // ==================== VOTING CONTROL ====================
-
 
 /**
  * Get current voting settings
@@ -487,7 +587,6 @@ export const getVotingSettings = async (): Promise<VotingSettings> => {
   }
 };
 
-
 /**
  * Update voting settings
  */
@@ -507,7 +606,6 @@ export const updateVotingSettings = async (settings: Partial<VotingSettings>): P
   }
 };
 
-
 /**
  * Open voting
  */
@@ -522,7 +620,6 @@ export const openVoting = async (): Promise<void> => {
     throw error;
   }
 };
-
 
 /**
  * Close voting with custom message

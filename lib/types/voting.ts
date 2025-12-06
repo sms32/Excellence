@@ -13,6 +13,7 @@ export interface Candidate {
   categoryId: string;
   photo: string;
   description: string;
+  order: number; // ✅ NEW: Display order (1, 2, 3)
   totalVotes: number;
   createdAt?: any;
   updatedAt?: any;

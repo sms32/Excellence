@@ -34,12 +34,16 @@ export const getCategories = async (): Promise<Category[]> => {
 };
 
 /**
- * Get candidates for a specific category
+ * Get candidates for a specific category (ordered by display order)
  */
 export const getCandidatesByCategory = async (categoryId: string): Promise<Candidate[]> => {
   try {
     const candidatesRef = collection(db, 'candidates');
-    const q = query(candidatesRef, where('categoryId', '==', categoryId));
+    const q = query(
+      candidatesRef, 
+      where('categoryId', '==', categoryId),
+      orderBy('order', 'asc') // ✅ Sort by order field
+    );
     const snapshot = await getDocs(q);
     
     return snapshot.docs.map(doc => ({
@@ -47,8 +51,30 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
       ...doc.data()
     } as Candidate));
   } catch (error) {
-    console.error('Error fetching candidates:', error);
-    throw error;
+    console.error('Error fetching candidates with order:', error);
+    
+    // Fallback: If order field doesn't exist or index not ready, fetch without ordering
+    try {
+      const fallbackQuery = query(candidatesRef, where('categoryId', '==', categoryId));
+      const fallbackSnapshot = await getDocs(fallbackQuery);
+      
+      const candidates = fallbackSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Candidate));
+      
+      // Sort by order field if it exists, otherwise keep original order
+      candidates.sort((a, b) => {
+        const orderA = a.order ?? 999; // Put unordered items at end
+        const orderB = b.order ?? 999;
+        return orderA - orderB;
+      });
+      
+      return candidates;
+    } catch (fallbackError) {
+      console.error('Fallback query also failed:', fallbackError);
+      throw fallbackError;
+    }
   }
 };
 
@@ -121,9 +147,6 @@ export const getUserVoteForCategory = async (
   }
 };
 
-/**
- * Submit a vote (with transaction to prevent double voting)
- */
 /**
  * Submit a vote (with transaction to prevent double voting)
  */
@@ -220,7 +243,6 @@ export const submitVote = async (
     throw error;
   }
 };
-
 
 /**
  * Get all user's votes

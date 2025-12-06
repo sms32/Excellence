@@ -8,7 +8,8 @@ import {
   getCandidatesByCategory,
   createCandidate,
   updateCandidate,
-  deleteCandidate
+  deleteCandidate,
+  getNextCandidateOrder
 } from '@/lib/services/adminService';
 import { Category, Candidate } from '@/lib/types/voting';
 import Link from 'next/link';
@@ -27,15 +28,17 @@ export default function CandidatesPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
 
-  // Form state
+  // Form state - Added order field
   const [formData, setFormData] = useState({
     name: '',
     categoryId: '',
     photo: '',
-    description: ''
+    description: '',
+    order: 1 // ✅ NEW: Order field
   });
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [suggestedOrder, setSuggestedOrder] = useState<number>(1);
 
   useEffect(() => {
     loadData();
@@ -51,6 +54,13 @@ export default function CandidatesPage() {
     filterCandidates();
   }, [selectedCategoryFilter, candidates]);
 
+  // ✅ NEW: Auto-suggest order when category changes
+  useEffect(() => {
+    if (formData.categoryId && !editingCandidate) {
+      loadSuggestedOrder(formData.categoryId);
+    }
+  }, [formData.categoryId, editingCandidate]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -64,6 +74,18 @@ export default function CandidatesPage() {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ NEW: Load suggested order for category
+  const loadSuggestedOrder = async (categoryId: string) => {
+    try {
+      const nextOrder = await getNextCandidateOrder(categoryId);
+      setSuggestedOrder(nextOrder);
+      setFormData(prev => ({ ...prev, order: nextOrder }));
+    } catch (error) {
+      console.error('Error loading suggested order:', error);
+      setSuggestedOrder(1);
     }
   };
 
@@ -86,24 +108,40 @@ export default function CandidatesPage() {
     return candidates.filter(c => c.categoryId === categoryId).length;
   };
 
-  const handleOpenModal = (candidate?: Candidate) => {
+  const handleOpenModal = async (candidate?: Candidate) => {
     if (candidate) {
       setEditingCandidate(candidate);
       setFormData({
         name: candidate.name,
         categoryId: candidate.categoryId,
         photo: candidate.photo,
-        description: candidate.description
+        description: candidate.description,
+        order: candidate.order || 1 // ✅ Load existing order
       });
       setImagePreview(candidate.photo);
+      setSuggestedOrder(candidate.order || 1);
     } else {
       setEditingCandidate(null);
+      const initialCategoryId = preselectedCategoryId || '';
+      
+      // Get suggested order for initial category
+      let initialOrder = 1;
+      if (initialCategoryId) {
+        try {
+          initialOrder = await getNextCandidateOrder(initialCategoryId);
+        } catch (error) {
+          console.error('Error getting initial order:', error);
+        }
+      }
+      
       setFormData({
         name: '',
-        categoryId: preselectedCategoryId || '',
+        categoryId: initialCategoryId,
         photo: '',
-        description: ''
+        description: '',
+        order: initialOrder // ✅ Set suggested order
       });
+      setSuggestedOrder(initialOrder);
       setImagePreview('');
     }
     setFormError('');
@@ -113,9 +151,10 @@ export default function CandidatesPage() {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingCandidate(null);
-    setFormData({ name: '', categoryId: '', photo: '', description: '' });
+    setFormData({ name: '', categoryId: '', photo: '', description: '', order: 1 });
     setImagePreview('');
     setFormError('');
+    setSuggestedOrder(1);
   };
 
   const validateForm = (): boolean => {
@@ -146,6 +185,12 @@ export default function CandidatesPage() {
     
     if (!formData.description.trim()) {
       setFormError('Description is required');
+      return false;
+    }
+
+    // ✅ NEW: Validate order
+    if (!formData.order || formData.order < 1 || formData.order > 3) {
+      setFormError('Display order must be between 1 and 3');
       return false;
     }
 
@@ -186,7 +231,8 @@ export default function CandidatesPage() {
         name: formData.name.trim(),
         categoryId: formData.categoryId,
         photo: formData.photo.trim(),
-        description: formData.description.trim()
+        description: formData.description.trim(),
+        order: formData.order // ✅ Include order
       };
       
       if (editingCandidate) {
@@ -570,6 +616,19 @@ export default function CandidatesPage() {
                         (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x400?text=No+Image';
                       }}
                     />
+                    {/* ✅ NEW: Display Order Badge */}
+                    <div className="absolute top-3 left-3">
+                      <span 
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                        style={{ 
+                          background: 'linear-gradient(135deg, #D4AF37 0%, #F4D03F 100%)',
+                          color: '#021210',
+                          boxShadow: '0 2px 8px rgba(212, 175, 55, 0.5)'
+                        }}
+                      >
+                        {candidate.order || '?'}
+                      </span>
+                    </div>
                     <div className="absolute top-3 right-3">
                       <span 
                         className="px-3 py-1 rounded-full text-xs font-semibold"
@@ -817,6 +876,71 @@ export default function CandidatesPage() {
                     )}
                   </div>
 
+                  {/* ✅ NEW: Display Order Field */}
+                  <div>
+                    <label 
+                      className="block text-sm font-semibold mb-2"
+                      style={{ color: '#B8956D' }}
+                    >
+                      Display Order <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        value={formData.order}
+                        onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 1 })}
+                        min="1"
+                        max="3"
+                        className="w-20 px-4 py-3 rounded-lg transition-all text-center"
+                        style={{
+                          background: 'rgba(107, 114, 128, 0.2)',
+                          border: '1px solid rgba(212, 175, 55, 0.3)',
+                          color: '#E8E8E8',
+                          outline: 'none',
+                          fontSize: '1.125rem',
+                          fontWeight: 'bold'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.6)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.3)';
+                        }}
+                        required
+                      />
+                      <div className="flex-1">
+                        <div className="flex gap-2 mb-2">
+                          {[1, 2, 3].map((num) => (
+                            <button
+                              key={num}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, order: num })}
+                              className="flex-1 py-2 rounded-lg font-semibold transition-all"
+                              style={{
+                                background: formData.order === num 
+                                  ? 'linear-gradient(135deg, #D4AF37 0%, #F4D03F 100%)'
+                                  : 'rgba(107, 114, 128, 0.2)',
+                                color: formData.order === num ? '#021210' : '#94A3B8',
+                                border: `1px solid ${formData.order === num ? '#D4AF37' : 'rgba(212, 175, 55, 0.3)'}`,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {num}
+                            </button>
+                          ))}
+                        </div>
+                        {!editingCandidate && suggestedOrder && (
+                          <p className="text-xs" style={{ color: '#4ADE80' }}>
+                            💡 Suggested: {suggestedOrder}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs mt-1" style={{ color: '#94A3B8' }}>
+                      Order determines display position (1 = first, 3 = last)
+                    </p>
+                  </div>
+
                   <div>
                     <label 
                       className="block text-sm font-semibold mb-2"
@@ -885,21 +1009,36 @@ export default function CandidatesPage() {
                     Photo Preview
                   </label>
                   <div 
-                    className="rounded-lg h-64 flex items-center justify-center overflow-hidden"
+                    className="rounded-lg h-64 flex items-center justify-center overflow-hidden relative"
                     style={{
                       border: '2px dashed rgba(212, 175, 55, 0.3)',
                       background: 'rgba(107, 114, 128, 0.1)'
                     }}
                   >
                     {imagePreview ? (
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x400?text=Invalid+URL';
-                        }}
-                      />
+                      <>
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x400?text=Invalid+URL';
+                          }}
+                        />
+                        {/* ✅ Show order badge on preview */}
+                        <div className="absolute top-3 left-3">
+                          <span 
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                            style={{ 
+                              background: 'linear-gradient(135deg, #D4AF37 0%, #F4D03F 100%)',
+                              color: '#021210',
+                              boxShadow: '0 2px 8px rgba(212, 175, 55, 0.5)'
+                            }}
+                          >
+                            {formData.order}
+                          </span>
+                        </div>
+                      </>
                     ) : (
                       <div className="text-center p-4">
                         <svg 
