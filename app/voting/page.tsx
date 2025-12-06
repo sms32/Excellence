@@ -62,7 +62,10 @@ export default function VotingPage() {
       setError('');
 
       const settingsData = await getVotingSettings();
-      setVotingSettings(settingsData);
+      if (settingsData) {
+  setVotingSettings(settingsData as VotingSettings);
+}
+
 
       const [categoriesData, progressData] = await Promise.all([
         getCategories(),
@@ -123,7 +126,7 @@ export default function VotingPage() {
     }
   };
 
-  const handleVote = async () => {
+const handleVote = async () => {
   if (!user || !selectedCandidate) return;
 
   const currentCategory = categories[currentCategoryIndex];
@@ -154,9 +157,13 @@ export default function VotingPage() {
     // Reload progress
     const updatedProgress = await getUserVotingProgress(user.uid);
     setVotingProgress(updatedProgress);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error submitting vote:', error);
-    setError(error.message || 'Failed to submit vote. Please try again.');
+    if (error instanceof Error) {
+      setError(error.message || 'Failed to submit vote. Please try again.');
+    } else {
+      setError(String(error) || 'Failed to submit vote. Please try again.');
+    }
   } finally {
     setSubmitting(false);
   }

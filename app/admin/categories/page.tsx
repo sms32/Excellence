@@ -142,9 +142,10 @@ export default function CategoriesPage() {
       
       await loadCategories();
       handleCloseModal();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving category:', error);
-      setFormError(error.message || 'Failed to save category');
+      const message = error instanceof Error ? error.message : String(error) || 'Failed to save category';
+      setFormError(message);
     } finally {
       setSubmitting(false);
     }
@@ -161,15 +162,15 @@ export default function CategoriesPage() {
     );
     
     if (!confirmed) return;
-    
     setDeleting(category.id);
     
     try {
       await deleteCategory(category.id);
       await loadCategories();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting category:', error);
-      alert(error.message || 'Failed to delete category');
+      const message = error instanceof Error ? error.message : String(error) || 'Failed to delete category';
+      alert(message);
     } finally {
       setDeleting(null);
     }

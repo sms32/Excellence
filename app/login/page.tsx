@@ -37,9 +37,10 @@ export default function LoginPage() {
       await signInWithGoogle();
       console.log('Sign in initiated');
       // The useEffect will handle redirect when user state updates
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Sign in error:', err);
-      setError(err.message || 'Failed to sign in with Google. Please ensure you are using a @karunya.edu or @karunya.edu.in email.');
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message || 'Failed to sign in with Google. Please ensure you are using a @karunya.edu or @karunya.edu.in email.');
       setIsSigningIn(false);
     }
   };
