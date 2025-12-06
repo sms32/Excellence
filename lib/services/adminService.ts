@@ -325,7 +325,7 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
     const q = query(
       candidatesRef, 
       where('categoryId', '==', categoryId),
-      orderBy('order', 'asc') // ✅ Sort by order
+      orderBy('order', 'asc')
     );
     const snapshot = await getDocs(q);
     
@@ -334,10 +334,11 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
       ...doc.data()
     } as Candidate));
   } catch (error) {
-    console.error('❌ Error fetching candidates:', error);
+    console.error('❌ Error fetching candidates with order:', error);
     
-    // Fallback: If order field doesn't exist yet, fetch without ordering
+    // Fallback: If order field doesn't exist or index not ready
     try {
+      const candidatesRef = collection(db, 'candidates'); // ✅ FIXED: Define candidatesRef here
       const fallbackQuery = query(candidatesRef, where('categoryId', '==', categoryId));
       const fallbackSnapshot = await getDocs(fallbackQuery);
       
@@ -346,12 +347,11 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
         ...doc.data()
       } as Candidate));
       
-      // Sort by order field if it exists, otherwise by creation time
+      // Sort by order field if it exists
       candidates.sort((a, b) => {
-        if (a.order && b.order) {
-          return a.order - b.order;
-        }
-        return 0;
+        const orderA = a.order ?? 999;
+        const orderB = b.order ?? 999;
+        return orderA - orderB;
       });
       
       return candidates;
@@ -361,6 +361,7 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
     }
   }
 };
+
 
 /**
  * Get candidate count for a category
