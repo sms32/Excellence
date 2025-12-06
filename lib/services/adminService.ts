@@ -13,9 +13,11 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { Category, Candidate } from '../types/voting';
+import { Category, Candidate, VotingSettings } from '../types/voting';
+
 
 // ==================== CATEGORY MANAGEMENT ====================
+
 
 /**
  * Create a new category
@@ -41,6 +43,7 @@ export const createCategory = async (categoryData: Omit<Category, 'id' | 'create
   }
 };
 
+
 /**
  * Update existing category
  */
@@ -59,6 +62,7 @@ export const updateCategory = async (categoryId: string, updates: Partial<Catego
     throw error;
   }
 };
+
 
 /**
  * Delete category (only if no candidates exist)
@@ -84,6 +88,7 @@ export const deleteCategory = async (categoryId: string): Promise<void> => {
   }
 };
 
+
 /**
  * Get all categories
  */
@@ -102,6 +107,7 @@ export const getAllCategories = async (): Promise<Category[]> => {
     throw error;
   }
 };
+
 
 /**
  * Get category by ID
@@ -124,7 +130,9 @@ export const getCategoryById = async (categoryId: string): Promise<Category | nu
   }
 };
 
+
 // ==================== CANDIDATE MANAGEMENT ====================
+
 
 /**
  * Create a new candidate
@@ -159,6 +167,7 @@ export const createCandidate = async (candidateData: Omit<Candidate, 'id' | 'tot
   }
 };
 
+
 /**
  * Update existing candidate
  */
@@ -181,6 +190,7 @@ export const updateCandidate = async (candidateId: string, updates: Partial<Cand
   }
 };
 
+
 /**
  * Delete candidate
  */
@@ -195,13 +205,8 @@ export const deleteCandidate = async (candidateId: string): Promise<void> => {
     
     const candidateData = candidateDoc.data() as Candidate;
     
-    // Check if candidate has votes
-    if (candidateData.totalVotes > 0) {
-      const confirm = window.confirm(
-        `This candidate has ${candidateData.totalVotes} votes. Deleting will affect voting results. Continue?`
-      );
-      if (!confirm) return;
-    }
+    // Warning: This will run on server-side during build, so we skip window.confirm
+    // The confirmation is handled in the component layer
     
     await deleteDoc(candidateRef);
     console.log('✅ Candidate deleted:', candidateId);
@@ -210,6 +215,7 @@ export const deleteCandidate = async (candidateId: string): Promise<void> => {
     throw error;
   }
 };
+
 
 /**
  * Get all candidates
@@ -228,6 +234,7 @@ export const getAllCandidates = async (): Promise<Candidate[]> => {
     throw error;
   }
 };
+
 
 /**
  * Get candidates by category
@@ -248,6 +255,7 @@ export const getCandidatesByCategory = async (categoryId: string): Promise<Candi
   }
 };
 
+
 /**
  * Get candidate count for a category
  */
@@ -261,7 +269,9 @@ export const getCandidateCount = async (categoryId: string): Promise<number> => 
   }
 };
 
+
 // ==================== DASHBOARD STATS ====================
+
 
 /**
  * Get admin dashboard statistics
@@ -301,6 +311,7 @@ export const getAdminStats = async () => {
   }
 };
 
+
 /**
  * Get category setup status
  */
@@ -323,7 +334,10 @@ export const getCategorySetupStatus = async () => {
     throw error;
   }
 };
+
+
 // ==================== RESULTS & ANALYTICS ====================
+
 
 /**
  * Get voting results for a specific category
@@ -366,6 +380,7 @@ export const getCategoryResults = async (categoryId: string) => {
   }
 };
 
+
 /**
  * Get all voting results (all categories)
  */
@@ -383,6 +398,7 @@ export const getAllVotingResults = async () => {
     throw error;
   }
 };
+
 
 /**
  * Get overall voting statistics
@@ -429,7 +445,9 @@ export const getVotingStatistics = async () => {
   }
 };
 
+
 // ==================== VOTING CONTROL ====================
+
 
 /**
  * Get current voting settings
@@ -439,27 +457,36 @@ export const getVotingSettings = async (): Promise<VotingSettings> => {
     const settingsRef = doc(db, 'settings', 'voting');
     const settingsDoc = await getDoc(settingsRef);
     
-    if (settingsDoc.exists()) {
-      return settingsDoc.data() as VotingSettings;
+    if (!settingsDoc.exists()) {
+      // Default settings if doesn't exist
+      const defaultSettings: VotingSettings = {
+        isOpen: false,
+        openedAt: null,
+        closedAt: null,
+        closedMessage: 'Voting is currently closed. Please check back later.',
+        announcementMessage: ''
+      };
+      
+      await setDoc(settingsRef, defaultSettings);
+      return defaultSettings;
     }
     
-    // Default settings if doesn't exist
-    const defaultSettings: VotingSettings = {
-      isOpen: true,
-      openedAt: serverTimestamp(),
-      closedMessage: 'Voting is currently closed. Please check back later.',
-      announcementMessage: '',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
+    const data = settingsDoc.data();
     
-    await setDoc(settingsRef, defaultSettings);
-    return defaultSettings;
+    // Properly cast to VotingSettings
+    return {
+      isOpen: data.isOpen ?? false,
+      openedAt: data.openedAt ?? null,
+      closedAt: data.closedAt ?? null,
+      closedMessage: data.closedMessage ?? 'Voting is currently closed.',
+      announcementMessage: data.announcementMessage ?? ''
+    } as VotingSettings;
   } catch (error) {
     console.error('Error fetching voting settings:', error);
     throw error;
   }
 };
+
 
 /**
  * Update voting settings
@@ -480,6 +507,7 @@ export const updateVotingSettings = async (settings: Partial<VotingSettings>): P
   }
 };
 
+
 /**
  * Open voting
  */
@@ -487,13 +515,14 @@ export const openVoting = async (): Promise<void> => {
   try {
     await updateVotingSettings({
       isOpen: true,
-      openedAt: serverTimestamp()
+      openedAt: serverTimestamp() as any
     });
   } catch (error) {
     console.error('Error opening voting:', error);
     throw error;
   }
 };
+
 
 /**
  * Close voting with custom message
@@ -502,7 +531,7 @@ export const closeVoting = async (closedMessage: string): Promise<void> => {
   try {
     await updateVotingSettings({
       isOpen: false,
-      closedAt: serverTimestamp(),
+      closedAt: serverTimestamp() as any,
       closedMessage
     });
   } catch (error) {
