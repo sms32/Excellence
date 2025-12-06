@@ -478,15 +478,7 @@ const handleVote = async () => {
           >
             {currentCategory.name}
           </h2>
-          <p 
-            className="text-sm max-w-xl mx-auto"
-            style={{ 
-              color: '#94A3B8',
-              lineHeight: '1.6'
-            }}
-          >
-            {currentCategory.description}
-          </p>
+          
         </div>
 
         {alreadyVoted && (
@@ -611,20 +603,13 @@ const handleVote = async () => {
                       className="text-xs mb-2"
                       style={{ 
                         color: '#D4AF37',
-                        letterSpacing: '0.03em'
+                        letterSpacing: '0.03em',
+                        paddingBlockStart: '2px',
                       }}
                     >
                       {currentCategory.name}
                     </p>
-                    <p 
-                      className="text-xs line-clamp-2 mb-2.5"
-                      style={{ 
-                        color: '#94A3B8',
-                        lineHeight: '1.4'
-                      }}
-                    >
-                      {candidate.description}
-                    </p>
+                    
                     
                     <button
                       onClick={() => setSelectedCandidate(candidate.id)}
