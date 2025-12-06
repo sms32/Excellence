@@ -4,7 +4,7 @@
 export const isAdmin = (email: string | null | undefined): boolean => {
   if (!email) return false;
   
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const adminEmail = 'sammichael@karunya.edu.in';
   return email.toLowerCase() === adminEmail?.toLowerCase();
 };
 
@@ -12,7 +12,7 @@ export const isAdmin = (email: string | null | undefined): boolean => {
  * Admin emails array (if you want multiple admins in future)
  */
 export const ADMIN_EMAILS = [
-  process.env.NEXT_PUBLIC_ADMIN_EMAIL || '',
+  'sammichael@karunya.edu.in',
   // Add more admin emails here if needed
 ].filter(Boolean);
 
