@@ -130,7 +130,7 @@ export default function LoginPage() {
             Women&apos;s Excellence Awards
           </h2>
           <p className="text-sm" style={{ color: '#E8E8E8' }}>
-            Karunya University Student Portal
+            Karunya University Polling Portal
           </p>
         </div>
         
@@ -147,7 +147,7 @@ export default function LoginPage() {
               
             </div>
             <p className="text-xs text-center" style={{ color: '#B8956D' }}>
-              Sign in with your @karunya.edu or @karunya.edu.in email
+              Sign in with your @karunya.edu or @karunya.edu.in or kate email
             </p>
           </div>
           

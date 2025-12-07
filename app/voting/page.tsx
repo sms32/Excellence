@@ -478,7 +478,15 @@ const handleVote = async () => {
           >
             {currentCategory.name}
           </h2>
-          
+          <p 
+            className="text-sm max-w-xl mx-auto"
+            style={{ 
+              color: '#94A3B8',
+              lineHeight: '1.6'
+            }}
+          >
+            {currentCategory.description}
+          </p>
         </div>
 
         {alreadyVoted && (
