@@ -124,7 +124,7 @@ export default function PollClosed() {
                   letterSpacing: '0.02em'
                 }}
               >
-                <span className="text-gradient-gold">The Poll Has</span>
+                <span className="text-gradient-gold">The Poll Has been</span>
                 <br />
                 <span className="text-gradient-gold">Closed</span>
               </h1>
