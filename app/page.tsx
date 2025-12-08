@@ -16,10 +16,10 @@ export default function LandingPage() {
       if (isAdmin(user.email)) {
         router.push('/admin');
       } else {
-        router.push('/voting');
+        router.push('/pollclosed');
       }
     } else {
-      router.push('/login');
+      router.push('/pollclosed');
     }
   };
 

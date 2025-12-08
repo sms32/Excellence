@@ -3,13 +3,12 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore'; // Add this
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDOjEU8Rt504IBPTCtfuX9Geh83rRczwpU",
-  authDomain: "excellence-a5c8d.firebaseapp.com",
-  projectId: "excellence-a5c8d",
-  storageBucket: "excellence-a5c8d.firebasestorage.app",
-  messagingSenderId: "906407142648",
-  appId: "1:906407142648:web:1ce9493831fd20a8acc70d",
-  measurementId: "G-P0QQ323GH3"
+  apiKey: "AIzaSyAkLb2gsL-cehiIptQufPKeL9j_n2bKmwA",
+  authDomain: "excellence-d749d.firebaseapp.com",
+  projectId: "excellence-d749d",
+  storageBucket: "excellence-d749d.firebasestorage.app",
+  messagingSenderId: "547974181804",
+  appId: "1:547974181804:web:e5c50569b137c0b12ec009"
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
